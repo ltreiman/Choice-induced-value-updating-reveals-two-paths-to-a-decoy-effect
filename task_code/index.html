@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Choice Task</title>
+    <script src="jspsych/jspsych.js"></script>
+    <script src="jspsych/plugins/plugin-html-keyboard-response.js"></script>
+    <script src="jspsych/plugins/plugin-external-html.js"></script>
+    <script src="jspsych/plugins/plugin-image-keyboard-response.js"></script>
+    <script src="jspsych/plugins/plugin-html-button-response.js"></script>
+    <script src="jspsych/plugins/plugin-preload.js"></script>
+    <script src="jspsych/plugins/plugin-instructions.js"></script>
+    <script src="jspsych/plugins/plugin-call-function.js"></script>
+    <script src="jspsych/plugins/plugin-survey-text.js"></script>
+    <link href="jspsych/css/extra.css" rel="stylesheet" type="text/css" />
+    <link href="jspsych/css/jspsych.css" rel="stylesheet" type="text/css" />
+    <script src="functions.js"></script>
+    <script src="intro.js"></script>
+    <style>
+    </style>
+    
+  </head>
+  <body></body>
+  <script>
+    var jsPsych = initJsPsych({
+      on_finish: function(data) {
+        window.location = "https://wupsych.sona-systems.com/webstudy_credit.aspx?experiment_id=796&credit_token=3d5a7bd8ee0445a1aef322b209f8df81&survey_code="+sonaId;
+      }
+    });
+    
+
+// Input 
+times = {fixation: 1000, time_to_choose: 6000, missed_selection: 4000, first_post_selection: 500, post_selection: 1000, outcome_break: 1000, length_of_experiment: 30}
+probabilities = {risky: [0.2, 0.45], safe: [0.55, 0.8]}
+position_to_move = 20
+locations = {x1: 15, x2: 50, y: 50}
+// decoyDifference = {target: 0.1, compfetitor: 5} // Option 1: stochastic differences
+decoyDifference = {risky: [10, 15], safe: [5, 11]} // 2nd digit excluded
+riskyAmount = [70, 100]
+//trials = {practice: 2, total: 198, outcome: 5}
+trials = {practice: 2, total: 132, outcome: 5}
+
+//trials = {practice: 2, total: 12, outcome: 5}
+
+non_selection_transparancy = 0.5
+while (trials.total%12!=0){ // 2 for trial type and 6 for order
+  trials.total+=1
+}
+
+// Can use math.random to get random p values, but I wanted to use constant ones to test it out
+var fixation = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div style="font-size:60px;">+</div>',
+  choices: "NO_KEYS",
+  trial_duration: 1000,
+};
+
+var selection1 = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function() {
+    let gambles = jsPsych.timelineVariable('gambles');
+
+    return `
+      <div id="wrapper0" style="position:absolute; top:50%; left:50%; transform: translate(-50%, -50%) translateX(-${position_to_move}vw);">
+        <div class="piechart" id="gamble0" style="background-image: conic-gradient(green ${360*gambles[0].p}deg, red 0);">
+          <div class="border"><h4 style="position:relative; left:${calc_amount_pos(gambles[0].p).left}%; top:${calc_amount_pos(gambles[0].p).top}%;">$${gambles[0].amount}</h4></div>
+        </div>
+      </div>
+     <div id="wrapper1" style="position:absolute; top:50%; left:50%; transform: translate(-50%, -50%) translateX(${position_to_move}vw);">
+        <div class="piechart" id="gamble1" style="background-image: conic-gradient(green ${360*gambles[1].p}deg, red 0);">
+          <div class="border"><h4 style="position:relative; left:${calc_amount_pos(gambles[1].p).left}%; top:${calc_amount_pos(gambles[1].p).top}%;">$${gambles[1].amount}</h4></div>
+        </div>
+      </div>
+    `;
+  },
+  choices: "NO_KEYS",
+  trial_duration: null, 
+  on_load: function() {
+    let gambles = jsPsych.timelineVariable('gambles');
+    let practice_trial = jsPsych.timelineVariable("practice")
+    let trialFinished = false;
+
+    setTimeout(() => {
+      let wrapper0 = document.getElementById("wrapper0");
+      let wrapper1 = document.getElementById("wrapper1");
+
+      // If practice trial, don't end trial, they get infinite time.
+      set_time = practice_trial == 1 ? 2147483647 : times.time_to_choose 
+
+      // If press no keys, end trial 
+      let timeoutId = setTimeout(() => {
+        if (!trialFinished) {
+          trialFinished = true;
+          jsPsych.finishTrial({
+            choice_key: null,
+            rt: null,
+            chosen_gamble: null,
+            sameSpot: null,
+            newPosition: null
+          });
+        }
+      }, set_time);
+
+      jsPsych.pluginAPI.getKeyboardResponse({
+        valid_responses: ["f","j"],
+        callback_function: function(info) {
+          if (!trialFinished) {
+            trialFinished = true;
+            clearTimeout(timeoutId);
+
+            let chosen = info.key === "f" ? wrapper0 : wrapper1;
+            let other  = info.key === "f" ? wrapper1 : wrapper0;
+            let chosen_gamble = info.key === 'f' ? gambles[0] : gambles[1];
+
+            // highlight selected pie
+            let chosenBorder = chosen.querySelector(".border");
+            if (chosenBorder) {
+              chosenBorder.style.opacity = 1;                  
+              chosenBorder.style.borderColor = "white";       
+              chosenBorder.style.borderWidth = "1px";         
+              chosenBorder.style.borderStyle = "dashed";        
+            }
+
+            // hide other pie
+            other.style.display = "none";
+
+            // Animate to center
+            setTimeout(() => {
+              chosen.style.transition = "transform 1s ease";
+              chosen.style.transform = "translate(-50%, -50%) translate(0, 0)";
+              }, times.first_post_selection)
+
+            // after first animation ends
+            chosen.addEventListener("transitionend", () => {
+              // remove border
+              if (chosenBorder) {
+                chosenBorder.style.borderColor = "black"; 
+              }
+
+              // calculate second movement
+              let sameSpot = Math.random() < 0.5;
+              let finalTransform;
+              let newPosition;
+              
+              if (sameSpot) {
+                // Move back to original position
+                finalTransform = info.key === "f" ? "translate(-50%, -50%) translate(-"+position_to_move+"vw, 0)" : "translate(-50%, -50%) translate("+position_to_move+"vw, 0)";
+                newPosition = info.key === "f" ? "left" : "right";
+              } else {
+                // Move to opposite side
+                finalTransform = info.key === "f" ? "translate(-50%, -50%) translate("+position_to_move+"vw, 0)" : "translate(-50%, -50%) translate(-"+position_to_move+"vw, 0)";
+                newPosition = info.key === "f" ? "right" : "left";
+              }
+
+              chosen.style.transition = "transform 1s ease";
+              chosen.style.transform = finalTransform;
+
+              // finish trial after second animation
+              chosen.addEventListener("transitionend", () => {
+                jsPsych.finishTrial({
+                  choice_key: info.key,
+                  rt: info.rt,
+                  chosen_gamble: chosen_gamble,
+                  sameSpot: sameSpot,
+                  newPosition: newPosition
+                });
+              }, { once: true });
+
+            }, { once: true });
+          }
+        }
+      });
+    }, 20);
+  },
+  data: {trial_name: "first_selection"}
+};
+
+
+
+
+// Display the third gamble
+var selection2 = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function(){ 
+    let gambles = jsPsych.timelineVariable('gambles');
+    let first_selection = jsPsych.data.get().last(1).values()[0];
+    if (first_selection.chosen_gamble == null){
+      return "Times up!<br><br>Please select a gamble on the next trial."
+    }
+    new_gambles = [gambles[2], first_selection.chosen_gamble] // Create variable with new gambles
+    if (first_selection.newPosition == "left"){
+      new_gambles = [first_selection.chosen_gamble, gambles[2]] // Need to switch order if chosen gamble needs to go on left
+    }
+    return `
+       <div id="wrapper0" style="position:absolute; top:50%; left:50%; transform: translate(-50%, -50%) translateX(-${position_to_move}vw);">
+        <div class="piechart" id="gamble0" style="background-image: conic-gradient(green ${360*new_gambles[0].p}deg, red 0);">
+          <div class="border"><h4 style="position:relative; left:${calc_amount_pos(new_gambles[0].p).left}%; top:${calc_amount_pos(new_gambles[0].p).top}%;">$${new_gambles[0].amount}</h4></div>
+        </div>
+      </div>
+      <div id="wrapper1" style="position:absolute; top:50%; left:50%; transform: translate(-50%, -50%) translateX(${position_to_move}vw);">
+        <div class="piechart" id="gamble1" style="background-image: conic-gradient(green ${360*new_gambles[1].p}deg, red 0);">
+          <div class="border"><h4 style="position:relative; left:${calc_amount_pos(new_gambles[1].p).left}%; top:${calc_amount_pos(new_gambles[1].p).top}%;">$${new_gambles[1].amount}</h4></div>
+        </div>
+      </div>
+    `;
+  },
+  choices: "NO_KEYS",
+  trial_duration: null, 
+  on_load: function() {
+    let gambles = jsPsych.timelineVariable('gambles');
+    let practice_trial = jsPsych.timelineVariable("practice");
+    first_selection = jsPsych.data.get().filter({trial_name: 'first_selection'}).last(1).values()[0];
+    let trialFinished = false;
+    if (first_selection.chosen_gamble == null){
+        // End trial automatically if no gamble selected on trial 1 (Note that this is if they do not make a selection on the first block)
+        setTimeout(() => {
+          if (!trialFinished) {
+          trialFinished = true;
+          jsPsych.finishTrial({
+            choice_key: null,
+            rt: null,
+            chosen_gamble: null,
+            sameSpot: null,
+            newPosition: null
+          });
+        }
+      }, times.missed_selection);
+      return;
+    }
+    new_gambles = [gambles[2], first_selection.chosen_gamble] // Create variable with new gambles
+    if (first_selection.newPosition == "left"){
+      new_gambles = [first_selection.chosen_gamble, gambles[2]] // Need to switch order if chosen gamble needs to go on left
+    }
+
+    setTimeout(() => {
+      let wrapper0 = document.getElementById("wrapper0");
+      let wrapper1 = document.getElementById("wrapper1");
+
+      // If practice trial, don't end trial, they get infinite time.
+      set_time = practice_trial == 1 ? 2147483647 : times.time_to_choose // Number equivalent to 25 days
+      // End trial automatically if no key press
+      let timeoutId = setTimeout(() => {
+        if (!trialFinished) {
+          trialFinished = true;
+          jsPsych.finishTrial({
+            choice_key: null,
+            rt: null,
+            chosen_gamble: null,
+            sameSpot: null,
+            newPosition: null
+          });
+        }
+      }, set_time);
+
+      jsPsych.pluginAPI.getKeyboardResponse({
+        valid_responses: ["f","j"],
+        callback_function: function(info) {
+          if (!trialFinished) {
+            trialFinished = true;
+            clearTimeout(timeoutId);
+
+            let chosen = info.key === "f" ? wrapper0 : wrapper1;
+            let other  = info.key === "f" ? wrapper1 : wrapper0;
+            let chosen_gamble = info.key === 'f' ? new_gambles[0] : new_gambles[1];
+
+            // highlight selected pie
+            let chosenBorder = chosen.querySelector(".border");
+            if (chosenBorder) {
+              chosenBorder.style.opacity = 1;                  
+              chosenBorder.style.borderColor = "white";       
+              chosenBorder.style.borderWidth = "1px";         
+              chosenBorder.style.borderStyle = "dashed";   
+            }
+
+            // hide other pie
+            other.style.display = "none";
+
+            setTimeout(() => {
+              jsPsych.finishTrial({
+                choice_key: info.key,
+                rt: info.rt,
+                chosen_gamble: chosen_gamble,
+              });
+            }, times.post_selection); 
+          }
+        }
+      });
+    }, 20);
+  },
+  data: {trial_name: 'final_selection'},
+};
+
+var save_the_data = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function(){
+    return "Times up!<br><br>Please select a gamble on the next trial."
+  },
+  choices: "NO_KEYS",
+  trial_duration: function(){
+    final_selection = jsPsych.data.get().filter({trial_name: 'final_selection'}).last(1).values()[0];
+    return final_selection.chosen_gamble == null ? times.missed_selection: 0
+  }, 
+  on_finish: function(data) {
+  let first_selection = jsPsych.data.get().filter({trial_name: 'first_selection'}).last(1).values()[0];
+  let final_selection = jsPsych.data.get().filter({trial_name: 'final_selection'}).last(1).values()[0];
+  let gambles = jsPsych.timelineVariable('gambles');
+  let madeFirstChoice = 1; // Assume they made a choice
+  let madeFinalChoice = 1; // Assume they made a choice
+  if(first_selection.chosen_gamble == null){
+    madeFirstChoice = 0; // Change to 0 if they did not make a choice
+  }
+  if(final_selection.chosen_gamble == null){
+    madeFinalChoice = 0; // Change to 0 if they did not make a choice
+  }
+
+  // Add data to the current trial
+  data.trial_type = "data_to_save";
+  data.trial_number = jsPsych.timelineVariable('trialNumber');
+  data.practice_trial = jsPsych.timelineVariable('practice');
+  data.random_trial = jsPsych.timelineVariable('random_trial');
+  data.made_first_choice = madeFirstChoice;
+  data.made_final_choice = madeFinalChoice;
+  data.trial_set = jsPsych.timelineVariable('trial_set');
+  data.order = jsPsych.timelineVariable('order_gambles');
+  data.added_gamble = gambles[2].id;
+  data.risky_amount = jsPsych.timelineVariable('riskyGamble').amount;
+  data.risky_probability = jsPsych.timelineVariable('riskyGamble').p;
+  data.safe_amount = jsPsych.timelineVariable('safeGamble').amount;
+  data.safe_probability = jsPsych.timelineVariable('safeGamble').p;
+  data.decoy_amount = jsPsych.timelineVariable("decoyGamble").amount;
+  data.decoy_probability = jsPsych.timelineVariable("decoyGamble").p;
+  data.first_left_gamble = gambles[0].id,
+  data.first_right_gamble = gambles[1].id,
+  data.first_response = madeFirstChoice == 1 ? first_selection.choice_key : "no_response";
+  data.first_response_gamble = madeFirstChoice == 1 ? first_selection.chosen_gamble.id : "no_gamble";
+  data.first_reaction_time = madeFirstChoice == 1 ? first_selection.rt : -1;
+  data.final_left_gamble = madeFirstChoice == 1 ? new_gambles[0].id : "no_gamble", // Should be first choice because otherwise gambles
+  data.final_right_gamble = madeFirstChoice == 1 ? new_gambles[1].id : "no_gamble",
+  data.final_response = madeFinalChoice == 1 ? final_selection.choice_key : "no_response";
+  data.final_response_gamble = madeFinalChoice == 1 ? final_selection.chosen_gamble.id : "no_gamble";
+  data.final_response_amount =  madeFinalChoice == 1 ? final_selection.chosen_gamble.amount : "no_gamble";
+  data.final_response_probability =  madeFinalChoice == 1 ? final_selection.chosen_gamble.p : "no_gamble";
+  data.final_reaction_time = madeFinalChoice == 1 ? final_selection.rt : -1;
+}
+};
+
+
+/* DISPLAY RESULTS--------------------------------------------------------------------------------------------------- */
+
+var equation_box_width= 28
+border_height = 5
+total_winnings = 0
+
+results_counter = -1
+result_pages = 4
+total_winnings = 0
+opacities = {outcome: [0,100,100,100], winnings: [0,0,0,100], spacebar: [100,0,0,100]}
+
+counter = 0 // Need to initialize counter
+var results = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function(){
+    save_page = false // Default to false
+    results_counter++
+    if(results_counter == result_pages){ // Need to reset
+      counter++
+      results_counter = 0
+    }
+
+    var data = jsPsych.data.get().filter({trial_type: "data_to_save", random_trial: true, practice_trial: 0});
+    trial = data.trials[counter]
+
+    if(results_counter == 0){
+      winnings = parseFloat(calculate_winnings(trial))
+    }
+    if(results_counter != 0){
+      winnings = jsPsych.data.get().last(1).values()[0].winnings
+    }
+    outcome_text = "Outcome: $"+winnings+""
+    text_color = "White" // Needed to change the text of the pie chart when participant loses
+
+    var spaceBarString= "Press the SPACE bar to show outcome"
+    if(results_counter == (result_pages-1)){ // On last page, need to change spacebar and add total winnings here
+      spaceBarString = "Press the SPACE bar to continue";
+      total_winnings = total_winnings + winnings
+      save_page = true
+    }
+
+    // winnings = parseFloat(calculate_winnings(trial))
+    if(results_counter == 1){
+      outcome_text = "Outcome ..."
+    }
+
+   if (trial.made_final_choice == 1){ 
+      gain_color = "green"
+      loss_color = "red"
+      if(winnings > 0){
+        if(results_counter >= (result_pages - 2)){
+          loss_color = "LightCoral"
+        }
+      }
+      if(winnings == 0){
+        if(results_counter >= (result_pages - 2)){
+          gain_color = "MediumSeaGreen"
+          text_color = "MediumSeaGreen"
+        }
+      }
+             //     '<div class="piechart" style = "background-image: conic-gradient(green '+360*gambles[0].p+'deg, red 0)"><div class = "border";";><h4 style = "position:relative; left: '+calc_amount_pos(gambles[0].p).left+'%; top:'+calc_amount_pos(gambles[0].p).top+'%;">$'+gambles[0].amount+'</h4></div></div>'
+      left_float = '<div class="piechart" style=" float: left; margin-right:5vw; background-image: conic-gradient('+gain_color+' '+360*trial.final_response_probability+'deg, '+loss_color+' 0);"><div class = "border"><h4 style = "color: '+text_color+'; position:relative; left: '+calc_amount_pos(trial.final_response_probability).left+'%; top:'+calc_amount_pos(trial.final_response_probability).top+'%;">$'+trial.final_response_amount+'</h4></div></div>'
+
+    }
+
+    else{ // Chose no response
+      left_float = '<div class = "noResponseSquare" style = "float: left;"><h3>No response</h3></div>'
+    }
+    return '<div class = "flex-container" style = "flex-direction: column"><br><h2>Selected from trial #'+trial.trial_number+'</h2><br><div style = "display: flex; flex-direction: row; align-items: center"><br>'+left_float+'<div align= "right" style ="float:right; width: '+equation_box_width+'vw"><h3><h3 style= "opacity: '+opacities["outcome"][results_counter]+';">'+outcome_text+'</h3><hr style= "opacity: '+opacities["winnings"][results_counter]+'"><div class = "border2" style= "opacity: '+opacities["winnings"][results_counter]+'"><h3 style= "opacity: '+opacities["winnings"][results_counter]+'">Total winnings: $'+total_winnings+'</h3></div></div></div><br><p style = "opacity: '+opacities["spacebar"][results_counter]+'">'+spaceBarString+'</p></div>'
+
+  },
+  choices: function(){
+    if(opacities["spacebar"][results_counter] == 100){
+      return " "
+    }
+  },
+  trial_duration: function(){
+    if(opacities["spacebar"][results_counter] == 0){
+      return times.outcome_break
+    }
+  },
+  post_trial_gap: function(){
+    if(results_counter == (result_pages-1)){
+      return times.trial_gap_time
+    }
+  },
+  data: {type: 'save_results',
+         trial_number: function(){return trial.trial_number},
+         winnings: function(){return winnings},
+         total_winnings: function(){return total_winnings},
+         save_page: function(){return save_page},
+         },
+};
+
+var instructions_1_block = {
+  type: jsPsychInstructions,
+  pages: instructions1(),
+  key_forward: ' ',
+  show_clickable_nav: true,
+  post_trial_gap: times.trial_gap_time,
+}
+
+
+var instructions_2_block = {
+  type: jsPsychInstructions,
+  pages: instructions2(),
+  key_forward: ' ',
+  show_clickable_nav: true,
+  post_trial_gap: times.trial_gap_time,
+}
+
+/*var instructions_3_block = {
+  type: jsPsychInstructions,
+  pages: instructions3(),
+  key_forward: ' ',
+  show_clickable_nav: true,
+  post_trial_gap: times.trial_gap_time,
+}*/
+var practice ={
+  timeline: [fixation, selection1, selection2, save_the_data],
+  timeline_variables: create_trials(trials, 1),
+}
+
+var experiment = {
+    timeline: [fixation, selection1, selection2, save_the_data],
+    timeline_variables: create_trials(trials, 0),
+}
+
+var before_results = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: 'You have just completed all of the trials.<br><br> Press the Continue button to see the results of '+trials.outcome+' randomly selected trials. <br><br>',
+    choices: ['Continue'],
+}
+
+var show_results = {
+  timeline: [results, results, results, results],
+  repetitions: trials.outcome,
+};
+
+
+
+// For SONA
+// var sonaId = "SONAID"
+var sonaId = jsPsych.data.getURLVariable("sona_id")
+
+// // Store subject ID for every trial
+jsPsych.data.addProperties({
+    sonaId: sonaId,
+})
+
+var score_block = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function(){
+    return '<p>Congrats! You completed the experiment! Your total winnings are $'+total_winnings+'.</p><br><br>If you have scored among the top 5% of participants, you will receive a $15 Amazon gift card once data collection for this study is completed.<br><br>We have a few questions for you before the experiment is finished. Please continue onto the next page.<br><br>'
+  },
+  data: {type: 'final_score',
+         total_winnings: function(){return total_winnings},
+  },
+}
+
+var demographics_block = {
+			timeline: [
+				{
+					type: jsPsychSurveyText,
+					preamble: ["Please provide us with some information about yourself:"],
+					questions: [{prompt: "How old are you?", required: true}, {prompt: "What is your gender?", required: true}],
+				}
+			],
+			loop_function: function(data){
+				age_ans = jsPsych.data.getLastTrialData().select('response').values[0].Q0
+				gender = jsPsych.data.getLastTrialData().select('response').values[0].Q1
+
+				if ((age_ans == '')||(gender == '')) {
+					alert("Please make sure you answer all questions.");
+					return true
+				}
+				if (isNaN(age_ans)) {
+					alert("Please enter your age as a number (make sure to remove any spaces)")
+					return true
+				} else {
+					age = parseInt(age_ans)
+					return false
+				}
+			},
+}
+
+// Consent Block -------------------------------------------------------------------------------------------------------------
+
+var check_consent = function(elem) {
+        if (document.getElementById('consent_checkbox').checked) {
+			return true
+		} else {
+			alert("If you wish to participate, you must check the box next to the statement 'I agree to participate in this study.'")
+			return false
+		}
+		return false
+}
+
+var consent_block = {
+	type: jsPsychExternalHtml,
+    url: "consent.html",
+	cont_btn: "start",
+	check_fn: check_consent
+}
+// Save Data -------------------------------------------------------------------------------------------------------------
+
+
+function save_data(data, table) {
+  var xhr = new XMLHttpRequest()
+  xhr.open('POST', 'write_data.php') // change ‘write_data.php’ to point to php script.
+  xhr.setRequestHeader('Content-Type', 'application/json')
+  xhr.onload = function() {
+    console.log(xhr.responseText)
+    if(xhr.status == 200){
+      var response = JSON.parse(xhr.responseText)
+      console.log(response.success)
+    }
+  }
+  xhr.send('data=' + data + '&table=' + table)
+}
+
+var save_choices_block = {
+    type: jsPsychCallFunction,
+    func: function(){
+        data = jsPsych.data.get().filter({trial_type: 'data_to_save'}).json()
+        save_data(data, "GST_choices2")
+    }
+}
+
+var save_outcome_block = {
+    type: jsPsychCallFunction,
+    func: function(){
+        data = jsPsych.data.get().filter({type: 'save_results', save_page: true}).json()
+        save_data(data, "GST_outcome")
+    }
+}
+
+var save_sub_info_block = {
+    type: jsPsychCallFunction,
+    func: function(){
+        demographics_data = jsPsych.data.getLastTrialData()
+        data = jsPsych.data.get().filter({type: 'final_score'})
+        subinfo = {
+            sonaId: sonaId,
+            age: age,
+			      gender: gender,
+			      time_elapsed: demographics_data.select('time_elapsed').values[0],
+			      monetary_score: data.trials[0].total_winnings,
+        }
+        data = (JSON.stringify([subinfo]))
+		save_data(data,'GST_subinfo')
+    }
+}
+
+var debriefing_block = {
+	type: jsPsychExternalHtml,
+    url: "debrief.html",
+	cont_btn: "start"
+}
+
+
+timeline = [
+  consent_block,
+  instructions_1_block,
+  practice,
+  instructions_2_block,
+  experiment,
+  before_results,
+  show_results,
+  save_choices_block,
+  save_outcome_block,
+  score_block,
+  demographics_block,
+  save_sub_info_block,
+  debriefing_block
+]
+jsPsych.run(timeline);
+</script>
+</html>

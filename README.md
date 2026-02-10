@@ -68,4 +68,3 @@ This experiment is implemented in **jsPsych**, using **JavaScript, HTML, and CSS
 - `jspsych/` — Folder containing jsPsych plugins and CSS files.
 - `write_data.php` — Handles writing and saving participant data to the PHP server.
 ---
-# Choice-induced-value-updating-reveals-two-paths-to-a-decoy-effect

@@ -2,10 +2,12 @@
 
 This folder contains behavioral data and model outputs from the experiments reported in 'Choice-induced value updating reveals two paths to a decoy effect' by Lauren S. Treiman and Wouter Kool.
 
+All conents can also be found on our OSF page: https://osf.io/qb8tz/overview
+
 ## Contents
 
 ### Root Level
-- `simulation_results.csv` - Output from computational simulations (can be regenerated using `/model_fitting_and_simulation/simulation.py`)
+- `simulation_results.csv` - Output from computational simulations (can be regenerated using `/model_fitting_and_simulation/simulation.py`) [Note: this file is too big, but you can find it on the OSF page or you can run `model_fitting_and_simulation/simulation.py`]
 
 ### main_experiment/
 - `choices.csv` - Behavioral data from main study

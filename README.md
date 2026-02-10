@@ -2,7 +2,7 @@
 
 This folder contains behavioral data and model outputs from the experiments reported in 'Choice-induced value updating reveals two paths to a decoy effect' by Lauren S. Treiman and Wouter Kool.
 
-All conents can also be found on our OSF page: https://osf.io/qb8tz/overview
+All conents can also be found on our OSF page: https://osf.io/qb8tz
 
 ## Contents
 
